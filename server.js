@@ -46,9 +46,6 @@ async function scrapeKeyword(page, keyword, link) {
       // Wait a moment
       await page.waitForTimeout(2000);
     }
-
-    // Close the page
-    await page.close();
   } catch (error) {
     console.error(`Error processing keyword ${keyword}:`, error);
   }
@@ -61,21 +58,28 @@ async function main() {
     output: process.stdout,
   });
 
-  const keywords = [];
+  // First ask for the link
+  console.log("Enter the link to use for all keywords:");
+  const link = await new Promise((resolve) => rl.question("", resolve));
 
-  console.log(
-    "Enter keywords and links (format: <keyword> <link>). Press Enter twice to finish:"
-  );
+  console.log("Enter keywords (one per line). Press Enter twice to finish:");
+
+  const keywords = [];
 
   // Collect keywords
   for await (const line of rl) {
     if (line.trim() === "") break;
-
-    const [keyword, link] = line.split(" ");
-    keywords.push({ keyword, link });
+    keywords.push(line.trim());
   }
 
   rl.close();
+
+  if (keywords.length === 0) {
+    console.log("No keywords provided. Exiting.");
+    return;
+  }
+
+  console.log(`Processing ${keywords.length} keywords with link: ${link}`);
 
   // Launch browser
   const browser = await puppeteer.launch({
@@ -84,18 +88,23 @@ async function main() {
   });
 
   try {
-    const page = await browser.newPage();
+    // Process each keyword one by one
+    for (let i = 0; i < keywords.length; i++) {
+      console.log(
+        `Processing keyword ${i + 1}/${keywords.length}: ${keywords[i]}`
+      );
 
-    // Process first keyword
-    if (keywords.length > 0) {
-      const { keyword, link } = keywords[0];
-      await scrapeKeyword(page, keyword, link);
+      const page = await browser.newPage();
+      await scrapeKeyword(page, keywords[i], link);
+      await page.close();
     }
 
-    // Close browser
+    // Close browser when done
     await browser.close();
+    console.log("All keywords processed successfully!");
   } catch (error) {
     console.error("Main process error:", error);
+    await browser.close();
   }
 }
 
